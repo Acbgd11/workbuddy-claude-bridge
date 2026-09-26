@@ -1,0 +1,14 @@
+{
+  "name": "workbuddy-anthropic-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "把本机 WorkBuddy 账号转成 Anthropic Messages API 的本地网关，供 Claude Code 经 cc-switch 接入",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "start": "node src/server.ts",
+    "typecheck": "tsc --noEmit"
+  }
+}

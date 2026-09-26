@@ -1,0 +1,12 @@
+# 网关运行时数据（含密钥、转储、日志）—— 绝不外泄
+workbuddy-anthropic-gateway/data/
+data/
+*.log
+config.local.json
+
+# 系统与编辑器
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp

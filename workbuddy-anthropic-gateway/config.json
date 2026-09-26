@@ -1,0 +1,42 @@
+{
+  "port": 8789,
+  "host": "127.0.0.1",
+
+  "models": {
+    "default": "glm-5.3-flash",
+
+    "map": {
+      "claude-opus": "glm-5.3-flash",
+      "claude-sonnet": "deepseek-v4.1-flash",
+      "claude-haiku": "glm-5.3-flash",
+      "claude-fable": "hy3"
+    },
+
+    "fallbackOrder": [
+      "glm-5.3-flash",
+      "deepseek-v4.1-flash",
+      "hy3"
+    ]
+  },
+
+  "upstream": {
+    "baseUrl": "https://copilot.tencent.com",
+    "chatPath": "/v2/chat/completions",
+    "refreshPath": "/v2/plugin/auth/token/refresh",
+    "timeoutMs": 300000
+  },
+
+  "accounts": {
+    "dirs": [
+      "%APPDATA%/CodeBuddyExtension/Data/Public/auth",
+      "%LOCALAPPDATA%/CodeBuddyExtension/Data/Public/auth"
+    ],
+    "extraFiles": []
+  },
+
+  "modelFallback": true,
+  "keepAliveMs": 15000,
+
+  "minMaxTokens": 8192
+}
+
