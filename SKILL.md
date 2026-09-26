@@ -126,6 +126,8 @@ setup 脚本已写好 profile(`Claude-3p\configLibrary\...json`)。让用户**�
 | "配置写好了但桌面端像没读" | profile 写错位置（cc-switch 旧版写到容器外） | pitfalls.md #6 |
 | "模型名对不上 / 说自己是 Opus" | 系统提示扮演，看网关日志 `x-wb-model-used` | pitfalls.md #7 |
 | "一直是旧路径 / 重启后连不上" | 计划任务记录的旧绝对路径失效 | pitfalls.md #12 |
+| "上下文只有 200K / 没有 1M 变体" | 网关没发 `supports_1m`（旧版）；需完全退出重开桌面端 | pitfalls.md #13 |
+| "计划任务拉起时弹黑窗" | 直跑 node.exe 自带控制台；已改 VBS 隐藏启动 | pitfalls.md #14 |
 | "问他是什么模型，答不对" | 网关剥掉了身份信息；现已改为注入真实模型名 | EXPERIENCE.md 第一节 |
 
 **进阶问题**（积分为什么变多、推理档位能不能调、怎么排查）不在 pitfalls 里，在 [`EXPERIENCE.md`](EXPERIENCE.md)——那是作者的实测心得，不是报错速查。

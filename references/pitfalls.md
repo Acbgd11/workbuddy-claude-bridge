@@ -149,3 +149,30 @@
 **根因**：计划任务的启动动作记录的是**注册那一刻的网关绝对路径**（WorkingDirectory）。此后网关目录只要被移动过——例如曾在临时目录里做过「模拟新机器」的部署测试、测完把目录删了——任务就再也拉不起网关，且**静默失败**（不弹任何提示）。
 
 **修法**：在网关的**当前**目录重跑 `scripts\setup-gateway.ps1`（会用新路径重注册任务，幂等）；或先 `Unregister-ScheduledTask -TaskName WorkBuddyGateway -Confirm:$false` 再重跑 setup。验证：`Get-ScheduledTaskInfo` 的 `LastTaskResult` 变成 `0`。
+
+---
+
+## #13 模型上下文只有 200K（DSH 里明明是 1M）
+
+**症状**：同一个模型（如 glm-5.3-flash），在 DSH/WorkBuddy 客户端里显示 1M 上下文，接到 Claude 桌面端后只剩 200K。
+
+**根因**：上游模型表每条带真实 `maxInputTokens`（glm-5.3-flash 等真实支持 1,000,000），但桌面端对网关发现的模型**不读这个值**——它只认 `/v1/models` 条目里的 `supports_1m` 字段，没有就按客户端内置默认 200K 算。网关以前没发这个字段，所以全部被压成 200K。
+
+**修法**（已内置在网关 `src/server.ts`）：
+1. `upstreamCatalog()` 保留上游的 `maxInputTokens` 字段
+2. `/v1/models` 对 `maxInputTokens ≥ 1_000_000` 的条目发 `supports_1m: true`
+3. 消息路由剥掉 `[1m]` 后缀再反查假名（客户端选 1M 变体时会发 `claude-xxx-n[1m]`）
+
+**验证**：`/v1/models` 里 10 个 1M 模型带 `supports_1m`；用 `假名[1m]` 发真实请求能正常回复。桌面端要看到 `[1m]` 变体需**完全退出重开**。
+
+**注意**：`supports_1m` 是对部署能力的声明，只有上游真实 ≥1M 的模型才能发——乱发会导致超长请求在上游报错。168K~512K 档位的模型（如 kimi-k2.6 256K、minimax-m3 512K）保持不声明，如实透传。
+
+---
+
+## #14 计划任务拉起网关时弹出黑色终端窗
+
+**症状**：开机登录后、或网关死而复活的瞬间，屏幕上闪一个黑色终端窗口（node 的控制台）。
+
+**根因**：计划任务直接执行 `node.exe`，控制台程序被任务调度器拉起时自带可见窗口。
+
+**修法**（已内置在 `setup-gateway.ps1`）：任务改为执行 `wscript.exe hidden-start.vbs`，由 VBS 以隐藏窗口样式（窗口样式 0）拉起 node——全程无窗口，且 wscript 常驻等待进程退出，任务状态保持 Running、`MultipleInstances=IgnoreNew` 的防重逻辑继续有效。

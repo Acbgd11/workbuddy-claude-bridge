@@ -84,12 +84,18 @@ $cc = "$env:LOCALAPPDATA\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\Claude"
 New-Item -ItemType Directory -Path $cc -Force | Out-Null
 Set-Content "$cc\claude_desktop_config.json" '{\"deploymentMode\":\"3p\"}' -Encoding UTF8
 Ok "Desktop profile written (real + MSIX container)"
-$action = New-ScheduledTaskAction -Execute "node.exe" -Argument "src/server.ts" -WorkingDirectory $GatewayDir
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero)
+# 隐藏启动器:wscript 以窗口样式 0 拉起 node,计划任务触发时不再弹黑色终端窗
+$vbs = Join-Path $GatewayDir "hidden-start.vbs"
+Set-Content -Path $vbs -Value 'CreateObject("WScript.Shell").Run "node src/server.ts", 0, True' -Encoding ASCII
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument ('"' + $vbs + '"') -WorkingDirectory $GatewayDir
+# 双触发器:登录拉起 + 每 5 分钟自愈轮询(休眠唤醒不触发登录事件,轮询兜底)
+$triggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$triggerPoll  = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 3650)
+# IgnoreNew:已在跑就忽略,轮询不会起重复进程;失败自动重试 3 次
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
 try {
-  Register-ScheduledTask -TaskName "WorkBuddyGateway" -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
-  Ok "Auto-start task registered (WorkBuddyGateway)"
+  Register-ScheduledTask -TaskName "WorkBuddyGateway" -Action $action -Trigger $triggerLogon,$triggerPoll -Settings $settings -Force | Out-Null
+  Ok "Auto-start task registered (WorkBuddyGateway: logon + 5-min self-heal, hidden window)"
 } catch { Warn "Task registration failed: $_" }
 Write-Host ""
 Write-Host "=== Done ===" -ForegroundColor Green

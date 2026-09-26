@@ -24,8 +24,8 @@ const pool = new AccountPool(cfg);
 
 /** 上游官方模型目录(5 分钟缓存),供 /v1/models 动态发现 */
 const CATALOG_TTL = 5 * 60_000;
-let catalogCache: { models: { id: string; name: string; credits?: string; descriptionZh?: string }[]; at: number } | null = null;
-async function upstreamCatalog(): Promise<{ models: { id: string; name: string; credits?: string; descriptionZh?: string }[] }> {
+let catalogCache: { models: { id: string; name: string; credits?: string; descriptionZh?: string; maxInputTokens?: number }[]; at: number } | null = null;
+async function upstreamCatalog(): Promise<{ models: { id: string; name: string; credits?: string; descriptionZh?: string; maxInputTokens?: number }[] }> {
   if (catalogCache && Date.now() - catalogCache.at < CATALOG_TTL) return catalogCache;
   const cred = pool.credentials[0];
   if (!cred) return catalogCache ?? { models: [] };
@@ -46,6 +46,7 @@ async function upstreamCatalog(): Promise<{ models: { id: string; name: string; 
           name?: string;
           credits?: string;
           descriptionZh?: string;
+          maxInputTokens?: number;
           tags?: string[];
         }[];
       };
@@ -58,7 +59,7 @@ async function upstreamCatalog(): Promise<{ models: { id: string; name: string; 
           m.id !== "default" &&
           !(m.tags ?? []).some((t) => t === "text-to-image"),
       )
-      .map((m) => ({ id: m.id as string, name: m.name ?? (m.id as string), credits: m.credits, descriptionZh: m.descriptionZh }));
+      .map((m) => ({ id: m.id as string, name: m.name ?? (m.id as string), credits: m.credits, descriptionZh: m.descriptionZh, maxInputTokens: m.maxInputTokens }));
     if (models.length) catalogCache = { models, at: Date.now() };
   } catch {
     // 拉取失败沿用旧缓存
@@ -310,8 +311,8 @@ async function handleMessages(req: IncomingMessage, res: ServerResponse, raw: st
   }
 
   const requestedRaw = typeof payload.model === "string" && payload.model ? payload.model : cfg.models.default;
-  // 桌面端动态发现发的假名(claude-xxx-n)→ 反查真实上游模型
-  const requested = aliasToReal.get(requestedRaw) ?? requestedRaw;
+  // 桌面端动态发现发的假名(claude-xxx-n)→ 反查真实上游模型;1M 变体带 [1m] 后缀,先剥掉
+  const requested = aliasToReal.get(requestedRaw.replace(/\[1m\]$/i, "")) ?? requestedRaw.replace(/\[1m\]$/i, "");
   // [临时排障] 记录 system 标记(只看是什么触发了 11128,排完删)
   try {
     const sys = payload.system;
@@ -556,11 +557,14 @@ const server = createServer((req, res) => {
           // tier 与假名序号同源轮换(序号 i → tier i%5),与 aliasFor 的 seq 对齐
           const TIERS = ["opus", "sonnet", "haiku", "fable", "mythos"] as const;
           const tier = TIERS[(i + 1) % TIERS.length];
+          // 上游表 maxInputTokens ≥ 1M 时声明 supports_1m,客户端才会生成 1M 上下文变体(默认按 200K)
+          const supports1m = typeof m.maxInputTokens === "number" && m.maxInputTokens >= 1_000_000;
           return {
             type: "model",
             id: alias,
             display_name: m.id + (credit ? ` (${credit})` : ""),
             anthropic_family_tier: tier,
+            ...(supports1m ? { supports_1m: true } : {}),
             created_at: new Date(0).toISOString(),
           };
         });
