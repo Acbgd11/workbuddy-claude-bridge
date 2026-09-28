@@ -26,7 +26,7 @@ https://copilot.tencent.com   ← WorkBuddy 客户端同款接口
 - **两种客户端都支持**：Claude 桌面端（3P gateway 模式，动态发现全部模型）+ 终端 Claude Code（经 cc-switch 接入）
 - **1M 上下文如实申报**：上游真实支持 1M 的模型（GLM-5.3-Flash、DeepSeek-V4.1-Flash、Kimi-K3 等 10 个）会在桌面端出现 `[1m]` 变体，不再被压成 200K
 - **自愈式常驻**：计划任务双触发器（登录 + 每 5 分钟自检），进程意外死掉最多 5 分钟自动复活，隐藏窗口无弹黑框
-- **踩坑全内置**：从一台空白电脑到跑通的全过程，含 15 条真机排障记录（`references/pitfalls.md`）
+- **踩坑全内置**：从一台空白电脑到跑通的全过程，含 16 条真机排障记录（`references/pitfalls.md`）
 - **一键部署**：`scripts/setup-gateway.ps1` 幂等执行——启动网关、写客户端配置、注册开机自启
 
 ## 快速开始
@@ -61,7 +61,7 @@ SKILL.md                    AI 操作手册：4 阶段对话式安装流程
 EXPERIENCE.md               一手经验与踩坑心得（模型身份、积分、档位、排障心法）
 README.md                   你正在看的这份
 references/
-  pitfalls.md               13 条真机踩坑实录（症状 → 根因 → 修法）
+  pitfalls.md               16 条真机踩坑实录（症状 → 根因 → 修法）
   desktop-profile-schema.md Claude 桌面端 profile 校验规则（asar 逆向结论）
   config-template.json      网关 config.json 模板（映射已配好）
   cc-switch-env.md          终端 CLI 在 cc-switch 里要填的 env
@@ -84,6 +84,7 @@ workbuddy-anthropic-gateway/  网关源码（零依赖，Node 直接运行）
 | 重启后连不上，手动启动却正常 | 计划任务记录的旧路径失效（静默失败） |
 | 上下文只有 200K（别处是 1M） | 客户端只认 `/v1/models` 的 `supports_1m` 声明，网关已按上游真实能力如实上报 |
 | 拉起网关时闪黑窗 | 任务直跑 node.exe 自带控制台，已改为 VBS 隐藏启动 |
+| DSH 里聊天全报错（UNKNOWN_MODEL / 密钥无效） | DSH 全局代理带偏上游拉取，插件退回 10 模型兜底表（NO_PROXY 加白即可） |
 
 完整清单见 [`references/pitfalls.md`](references/pitfalls.md)。
 

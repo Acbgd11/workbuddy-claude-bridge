@@ -176,3 +176,32 @@
 **根因**：计划任务直接执行 `node.exe`，控制台程序被任务调度器拉起时自带可见窗口。
 
 **修法**（已内置在 `setup-gateway.ps1`）：任务改为执行 `wscript.exe hidden-start.vbs`，由 VBS 以隐藏窗口样式（窗口样式 0）拉起 node——全程无窗口，且 wscript 常驻等待进程退出，任务状态保持 Running、`MultipleInstances=IgnoreNew` 的防重逻辑继续有效。
+
+---
+
+## #15 DSH 里聊天全报错：`UNKNOWN_MODEL` /「API 密钥无效」（全局代理把上游拉取带偏）
+
+**症状**：DSH 聊天完全无法进行，报 `pi-ai provider "workbuddy-xdpool" has no configured model "<模型名>"`（`UNKNOWN_MODEL`）或「API 密钥无效」；**不开代理必犯、开着代理就好**（看起来像"必须开梯子才能用"），重启偶尔短暂恢复。
+
+**根因**：DSH 内核的 `dsh-http-proxy` 会把 `$DSH_HOME/.env` 里的 `HTTP_PROXY` / `HTTPS_PROXY` 应用到**进程内所有出站请求**（仅 `NO_PROXY` 白名单例外，loopback 自动豁免）。这份 .env 往往是为别的事配的（例如绕 Clash TUN 的 fake-ip 问题），而 WorkBuddy 上游域名**不在白名单**里，于是：
+
+- 代理进程在跑 → 一切正常
+- 代理进程一退出 → 端口没人监听 → 插件启动时拉不到模型目录（`copilot.tencent.com/v2/enterprises/personal/models`）→ **退回内置静态兜底表（仅 10 个模型）**
+- 兜底表里没有的模型（`deepseek-v4.1-flash`、`auto`、`hy3-x`、`glm-5v-turbo`、`kimi-k3-1`、`kimi-k2.x` 都不在）一被点名就是 `UNKNOWN_MODEL`；伴随的「API 密钥无效」同因——插件所有联网环节都被同一个死代理阻断
+
+**修法**：把这些域名加进 `.env` 的 `NO_PROXY`（它们国内可直连，聊天本身不需要代理）：
+
+```ini
+NO_PROXY=localhost,127.0.0.1,::1,<你已有的条目>,copilot.tencent.com,codebuddy.cn
+# 国际版（global）另加：workbuddy.ai
+```
+
+改完**重启 DSH**——`.env` 只在启动时读一次。
+
+**验证**：调插件状态接口看 `models` 数组长度：**16 = 拉取成功**；**10 = 还在用兜底表**（代理问题未解）。修复后即使代理完全关闭也应是 16。
+
+**抗性建议**：默认模型用 `deepseek-v4-pro`（在兜底表内）比 `deepseek-v4.1-flash`（不在）更耐故障——拉取失败时前者仍可对话，后者直接整体报错。
+
+**注意**：本仓库的反代网关（8789）是独立进程、默认不读这些代理变量，不受此坑影响；它只咬 DSH 内核托管的那条链路。
+
+> 实测 2026-09-29：Clash 完全退出 + `NO_PROXY` 含上述域名，重启 DSH → 16 个模型全可用。
